@@ -1,0 +1,75 @@
+{
+  "name": "codex-dsh-workspace",
+  "version": "0.1.0",
+  "description": "One local bridge for Codex planning, DeepSeek Harness execution, project grouping and chat portability.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "codex-dsh-workspace": "bin/cli.mjs",
+    "codex-dsh-delegate": "bin/delegate-mcp.mjs"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "package.json",
+    "cordis.patch.yml",
+    "bin",
+    "lib",
+    "skills",
+    "docs",
+    "README.md",
+    "README.en.md",
+    "LICENSE",
+    "NOTICE",
+    "third_party"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "test:upstream": "node scripts/upstream-tests.mjs",
+    "check": "npm test && npm run test:upstream && node scripts/package-audit.mjs",
+    "prepack": "node scripts/package-audit.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-session-format-catalog": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-format-v0-to-v1": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-format-v1-to-v2": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-format-v2-to-v3": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-format-v3-to-v4": "0.1.7-rc.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TomPrestonWernerp/codex-dsh-workspace.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TomPrestonWernerp/codex-dsh-workspace/issues"
+  },
+  "homepage": "https://github.com/TomPrestonWernerp/codex-dsh-workspace#readme"
+}

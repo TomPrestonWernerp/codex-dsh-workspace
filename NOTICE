@@ -1,0 +1,16 @@
+codex-dsh-workspace incorporates modified MIT-licensed source from:
+
+1. baitouwuya/dsh-mcp-server, commit ccc1905093e113a06fc342af553c836c62924076.
+   https://github.com/baitouwuya/dsh-mcp-server
+   Source: lib/execution. Original license: third_party/licenses/dsh-mcp-server-MIT.txt.
+
+2. Walvez/dsh-codex-sync, commit 75bbca80457eb5743a8fd293e1315f45a0771427.
+   https://github.com/Walvez/dsh-codex-sync
+   Source: lib/history and the history interface in client.js.
+   Original license and additional upstream attributions are preserved in
+   third_party/licenses/dsh-codex-sync-MIT.txt and dsh-codex-sync-NOTICE.txt.
+
+Changes include a unified package and host lifecycle, a bounded six-tool Codex
+MCP interface, project-catalog grouping, Windows test portability, and handling
+of completed turns in opening follow snapshots. This is an independent
+community project, not an official OpenAI or DeepSeek integration.

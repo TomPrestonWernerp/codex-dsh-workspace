@@ -1,0 +1,14 @@
+node_modules/
+*.tgz
+coverage/
+.env
+.env.*
+!.env.example
+state/
+backups/
+artifacts/
+*.log
+*.sqlite*
+*.jsonl*
+!test/**
+.DS_Store
