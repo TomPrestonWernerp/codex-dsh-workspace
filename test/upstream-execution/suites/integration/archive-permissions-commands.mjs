@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict'
 
-import { createPluginHarness, PROMPT } from '../helpers/plugin-harness.mjs'
+import { TEST_CWD, createPluginHarness, PROMPT } from '../helpers/plugin-harness.mjs'
 
 const h = await createPluginHarness({ label: 'archive-permissions-commands' })
 const {
@@ -26,7 +26,7 @@ const {
 const { call, rpc, check } = h
 
 try {
-  const run = await call('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp' })
+  const run = await call('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD })
   const sessionIdFromRun = run.sessionId
 
   const listedBefore = await call('dsh_list_sessions', { limit: 5 })
@@ -87,7 +87,7 @@ try {
     assert.deepEqual(presets.presets.map((option) => option.value), ['read-only', 'workspace-write', 'danger-full-access'])
   })
 
-  const pinned = await call('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp', permissionPreset: 'read-only' })
+  const pinned = await call('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD, permissionPreset: 'read-only' })
   const pinnedRead = await call('dsh_read_session', { sessionId: pinned.sessionId, limit: 0 })
   await check('dsh_run_prompt applies permissionPreset and the transcript folds it back', () => {
     assert.equal(pinned.permissionPreset, 'read-only')
@@ -127,7 +127,7 @@ try {
     jsonrpc: '2.0',
     id: h.nextId(),
     method: 'tools/call',
-    params: { name: 'dsh_run_prompt', arguments: { prompt: PROMPT, cwd: '/tmp', permissionPreset: 'no-such-preset' } },
+    params: { name: 'dsh_run_prompt', arguments: { prompt: PROMPT, cwd: TEST_CWD, permissionPreset: 'no-such-preset' } },
   })
   await check('an unknown permission preset fails and lists the available ones', () => {
     assert.ok(unknownPreset.result?.isError, 'an unknown permission preset must fail the call')
@@ -156,7 +156,7 @@ try {
   // activation.
   services.setDefaultSelection({ provider: 'deepseek-official', model: 'deepseek-v4.1-flash-1017-anthropic' })
   const liveStatus = await call('dsh_status', {})
-  const liveModel = await call('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp' })
+  const liveModel = await call('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD })
   const liveSelection = modelSelections().at(-1).model
   await check('the default model is resolved at call time', () => {
     assert.equal(liveStatus.defaultModel.model, 'deepseek-v4.1-flash-1017-anthropic', 'dsh_status reads the model at call time')
@@ -167,7 +167,7 @@ try {
   // A default that went stale (a retired pair) must not cost the session: the
   // Host keeps its own default and the call still completes.
   services.setSelectModelFailure(true)
-  const staleDefault = await call('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp' })
+  const staleDefault = await call('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD })
   services.setSelectModelFailure(false)
   services.setDefaultSelection({ provider: 'deepseek-official', model: 'deepseek-v4.1-flash-anthropic' })
   await check('a stale default model is logged instead of failing the prompt', () => {

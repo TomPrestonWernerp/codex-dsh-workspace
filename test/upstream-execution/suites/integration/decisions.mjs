@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict'
 
-import { createPluginHarness, INTERNAL_AGENT, PROMPT } from '../helpers/plugin-harness.mjs'
+import { TEST_CWD, createPluginHarness, INTERNAL_AGENT, PROMPT } from '../helpers/plugin-harness.mjs'
 
 const h = await createPluginHarness({ label: 'decisions' })
 const { seedEvents, registeredTools, setCallerMode, currentId, injectedMessages, makeAgent } = h
@@ -43,7 +43,7 @@ try {
       assert.equal(typeof responder.hooks.get('user-questions/request'), 'function')
     })
 
-    const owned = await responderCall('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp' }, { 'x-dsh-mcp-client': 'responder' })
+    const owned = await responderCall('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD }, { 'x-dsh-mcp-client': 'responder' })
     const ownedSession = owned.result.structuredContent.sessionId
     responder.seedEvents([
       { type: 'approval/asked', data: { id: 'audit-1', toolName: 'bash', callId: 'call-park', reason: 'escalate sandbox' } },
@@ -179,7 +179,7 @@ try {
 
   // --- pending user decisions --------------------------------------------------
   const codex = { headers: { 'x-dsh-mcp-client': 'codex' } }
-  const created = await call('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp' }, codex)
+  const created = await call('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD }, codex)
   seedEvents([
     { type: 'approval/asked', data: { id: 'app-open', toolName: 'bash', callId: 'call-1', reason: 'escalate sandbox to danger-full-access: ' + 'r'.repeat(400) } },
     { type: 'approval/asked', data: { id: 'app-done', toolName: 'read', callId: 'call-2', reason: 'auto review denied tool "read"' } },

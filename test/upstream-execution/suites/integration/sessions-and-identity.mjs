@@ -13,14 +13,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { createClientRegistry, resolveCaller } from '../../../../lib/execution/lib/clients.js'
-import { createPluginHarness, PROMPT, REPLY } from '../helpers/plugin-harness.mjs'
+import { TEST_CWD, createPluginHarness, PROMPT, REPLY } from '../helpers/plugin-harness.mjs'
 
 const h = await createPluginHarness({ label: 'sessions-and-identity' })
 const { services, cancelledSessions, setRunning, setHang, resolvedAgents, currentId } = h
 const { call, rpc, check } = h
 
 try {
-  const run = await call('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp' })
+  const run = await call('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD })
   const sessionIdFromRun = run.sessionId
 
   // --- waiting for a turn -----------------------------------------------------
@@ -131,7 +131,7 @@ try {
     assert.equal(versionedLabel.client.version, '2.1.295')
   })
 
-  const created = await call('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp' }, codex)
+  const created = await call('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD }, codex)
   const mine = await call('dsh_list_sessions', { limit: 20, mine: true }, codex)
   const byOwner = await call('dsh_list_sessions', { limit: 20, owner: 'codex' }, claude)
   await check('dsh_run_prompt records the creating agent, and mine/owner filter the listing', () => {
@@ -199,7 +199,7 @@ try {
       { jsonrpc: '2.0', id: strict.nextId(), method: 'tools/call', params: { name, arguments: args } },
       { headers },
     )
-    const strictCreated = await strictCall('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp' }, { 'x-dsh-mcp-client': 'codex' })
+    const strictCreated = await strictCall('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD }, { 'x-dsh-mcp-client': 'codex' })
     const strictSession = strictCreated.result.structuredContent.sessionId
     const borrowed = await strictCall('dsh_read_session', { sessionId: strictSession }, { 'x-dsh-mcp-client': 'claude-code' })
     const claudeList = await strictCall('dsh_list_sessions', { limit: 20 }, { 'x-dsh-mcp-client': 'claude-code' })

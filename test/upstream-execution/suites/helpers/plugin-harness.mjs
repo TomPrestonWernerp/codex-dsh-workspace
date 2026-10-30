@@ -10,17 +10,18 @@
 
 import { createServer } from 'node:http'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { apply } from '../../../../lib/execution/index.js'
 
+export const TEST_CWD = await realpath(tmpdir())
 export const PROMPT = 'delegate this task'
 export const REPLY = 'hello from dsh'
 
 /** The DSH agent a local tool call is attributed to. */
-export const INTERNAL_AGENT = { id: 'agent-live', session: { header: { id: 'live-session', cwd: '/' } } }
+export const INTERNAL_AGENT = { id: 'agent-live', session: { header: { id: 'live-session', cwd: TEST_CWD } } }
 
 /** Minimal fake Cordis context exposing only what the plugin touches. */
 export function makeContext(services, disposers, hooks = new Map()) {
@@ -96,7 +97,7 @@ export function makeServices() {
   }
 
   /** The one live session the fake store hands back to the permission writer. */
-  const liveSession = { id: 'live-session', header: { id: 'session-current', cwd: '/tmp' }, append() {} }
+  const liveSession = { id: 'live-session', header: { id: 'session-current', cwd: TEST_CWD }, append() {} }
 
   /** Messages an internal caller queued through the target agent's handle. */
   const injectedMessages = []
@@ -282,7 +283,7 @@ export function makeServices() {
             running: runningSessions.has(currentSessionId),
             blank: false,
             agentAvailable: true,
-            cwd: '/tmp',
+            cwd: TEST_CWD,
           },
           ...extraSessions.map((entry) => ({
             sessionId: entry.sessionId,
@@ -290,7 +291,7 @@ export function makeServices() {
             running: entry.running === true,
             blank: false,
             agentAvailable: true,
-            cwd: entry.cwd ?? '/tmp',
+            cwd: entry.cwd ?? TEST_CWD,
             ...(entry.parentSessionId ? { parentSessionId: entry.parentSessionId } : {}),
           })),
         ],
@@ -301,7 +302,7 @@ export function makeServices() {
   const sessionQuery = {
     async readSession(id) {
       assert.equal(id, currentSessionId)
-      return { session: { cwd: '/tmp', createdAt: Date.now() }, events, inheritedEventCount: 0 }
+      return { session: { cwd: TEST_CWD, createdAt: Date.now() }, events, inheritedEventCount: 0 }
     },
     async readTitleSnapshots(ids) {
       return ids.map((id) => ({
@@ -371,7 +372,7 @@ export function makeServices() {
 
   /** The per-call policy service the clamp reads the caller's own mode from. */
   const sandboxPolicy = {
-    resolve: (request) => ({ mode: callerMode, workspaceRoot: '/tmp', sessionId: request?.session?.header?.id }),
+    resolve: (request) => ({ mode: callerMode, workspaceRoot: TEST_CWD, sessionId: request?.session?.header?.id }),
   }
 
   /** The profile configuration editor the settings page writes through. */
@@ -398,7 +399,7 @@ export function makeServices() {
 
   /** A calling agent with the scoped context `dsh_mcp_open` registers into. */
   function makeAgent(id = 'agent-live', sessionId = 'live-session') {
-    const agent = { id, session: { header: { id: sessionId, cwd: '/' } } }
+    const agent = { id, session: { header: { id: sessionId, cwd: TEST_CWD } } }
     const registered = []
     agentScopes.set(agent, registered)
     const scope = {

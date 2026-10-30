@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict'
 
-import { createPluginHarness, PROMPT } from '../helpers/plugin-harness.mjs'
+import { TEST_CWD, createPluginHarness, PROMPT } from '../helpers/plugin-harness.mjs'
 
 const h = await createPluginHarness({ label: 'transcripts' })
 const { seedMessages, addSyntheticSessions, currentId } = h
@@ -17,7 +17,7 @@ const { call, check } = h
 const codex = { headers: { 'x-dsh-mcp-client': 'codex' } }
 
 try {
-  const created = await call('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp' }, codex)
+  const created = await call('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD }, codex)
 
   // --- progressive disclosure -------------------------------------------------
   seedMessages([

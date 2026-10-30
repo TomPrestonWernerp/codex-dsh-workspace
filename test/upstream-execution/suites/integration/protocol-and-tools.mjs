@@ -14,7 +14,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 
 import { lossless } from '../../../../lib/execution/lib/dsh-tools-bridge.js'
-import { createPluginHarness, INTERNAL_AGENT, PROMPT, REPLY } from '../helpers/plugin-harness.mjs'
+import { TEST_CWD, createPluginHarness, INTERNAL_AGENT, PROMPT, REPLY } from '../helpers/plugin-harness.mjs'
 
 const h = await createPluginHarness({ label: 'protocol-and-tools' })
 const {
@@ -36,7 +36,7 @@ try {
     assert.equal(init.result.serverInfo.name, 'dsh-mcp-server')
   })
 
-  const run = await call('dsh_run_prompt', { prompt: PROMPT, cwd: '/tmp' })
+  const run = await call('dsh_run_prompt', { prompt: PROMPT, cwd: TEST_CWD })
   const sessionIdFromRun = run.sessionId
   await check('dsh_run_prompt creates a session and returns the final assistant text', () => {
     assert.equal(run.status, 'completed')
@@ -196,21 +196,21 @@ try {
   })
 
   const openRunner = agentTools(agent).find((tool) => tool.name === 'dsh_run_prompt')
-  const openedRun = await openRunner.execute({ prompt: 'opened run', cwd: '/tmp' }, { agent })
+  const openedRun = await openRunner.execute({ prompt: 'opened run', cwd: TEST_CWD }, { agent })
   await check('an opened tool runs natively for that agent', () => {
     assert.equal(openedRun.status, 'completed')
   })
 
   setCallerMode('workspace-write')
   setCallerPreset('workspace-write')
-  const localRun = await dispatch('dsh_run_prompt', { prompt: 'internal delegation', cwd: '/tmp' })
+  const localRun = await dispatch('dsh_run_prompt', { prompt: 'internal delegation', cwd: TEST_CWD })
   await check('a dispatched call is attributed to its session and starts pinned to its own preset', () => {
     assert.equal(localRun.status, 'completed')
     assert.equal(localRun.permissionPreset, 'workspace-write', 'a started session is pinned to the caller preset')
     assert.equal(localRun.owner.id, 'dsh-agent:live-session', 'an internal call is attributed to the calling session')
   })
 
-  const widerRefusal = await refusedBy('dsh_run_prompt', { prompt: 'too wide', cwd: '/tmp', permissionPreset: 'danger-full-access' })
+  const widerRefusal = await refusedBy('dsh_run_prompt', { prompt: 'too wide', cwd: TEST_CWD, permissionPreset: 'danger-full-access' })
   await check('an internal caller cannot grant a preset wider than its own file policy', () => {
     assert.ok(widerRefusal, 'a preset wider than the caller must be refused')
     assert.match(String(widerRefusal.message), /wider than the calling DSH agent/)
@@ -221,7 +221,7 @@ try {
 
   setCallerMode('danger-full-access')
   setCallerPreset('danger-full-access')
-  const narrowedPreset = await dispatch('dsh_run_prompt', { prompt: 'narrower', cwd: '/tmp', permissionPreset: 'read-only' })
+  const narrowedPreset = await dispatch('dsh_run_prompt', { prompt: 'narrower', cwd: TEST_CWD, permissionPreset: 'read-only' })
   await check('an internal caller may still set a preset at or below its own rung', () => {
     assert.equal(narrowedPreset.permissionPreset, 'read-only', 'a narrower preset is not a privilege grant')
   })
@@ -235,7 +235,7 @@ try {
   })
 
   const nativeRefusal = await openRunner
-    .execute({ prompt: 'natively too wide', cwd: '/tmp', permissionPreset: 'danger-full-access' }, { agent })
+    .execute({ prompt: 'natively too wide', cwd: TEST_CWD, permissionPreset: 'danger-full-access' }, { agent })
     .then(() => undefined, (error) => error)
   await check('the ceiling applies to a natively opened tool exactly as to a dispatched one', () => {
     assert.match(String(nativeRefusal && nativeRefusal.message), /wider than the calling DSH agent/)
