@@ -1,6 +1,6 @@
 {
   "name": "codex-dsh-workspace",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "One local bridge for Codex planning, DeepSeek Harness execution, project grouping and chat portability.",
   "type": "module",
   "license": "MIT",

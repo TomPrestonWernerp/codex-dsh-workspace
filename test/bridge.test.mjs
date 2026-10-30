@@ -16,7 +16,9 @@ test('slim stdio bridge authenticates locally, restricts tools and saves oversiz
     const body = []; for await (const c of req) body.push(c)
     const m = JSON.parse(Buffer.concat(body)); let result
     if (m.method === 'initialize') result = { protocolVersion: '2025-03-26', serverInfo: { name: 'fixture' }, instructions: 'verbose'.repeat(1000) }
-    else { toolCalls++; result = { structuredContent: { sessionId: 'fixture-session', status: 'completed', text: 'evidence '.repeat(2000) }, content: [] } }
+    else { toolCalls++; result = { structuredContent: m.params?.name === 'dsh_run_prompt'
+      ? { sessionId: 'fixture-session', status: 'started', cursor: { afterSeq: -1 } }
+      : { sessionId: 'fixture-session', status: 'completed', running: false, turnEndReason: 'completed', text: 'evidence '.repeat(2000) }, content: [] } }
     res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ jsonrpc: '2.0', id: m.id, result }))
   })
   server.listen(0, '127.0.0.1'); await once(server, 'listening')
@@ -28,7 +30,7 @@ test('slim stdio bridge authenticates locally, restricts tools and saves oversiz
   const call = (method, params = {}) => new Promise(resolve => { const id = ++seq; waiters.set(id, resolve); child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n') })
   try {
     const init = await call('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
-    assert.ok(init.result.instructions.length < 500)
+    assert.ok(init.result.instructions.length < 800)
     assert.equal((await call('tools/list')).result.tools.length, 6)
     assert.equal((await call('tools/call', { name: 'dsh_run_command', arguments: {} })).result.isError, true)
     assert.equal((await call('tools/call', { name: 'dsh_run_prompt', arguments: { cwd: parse(home).root, prompt: 'rejected' } })).result.isError, true)

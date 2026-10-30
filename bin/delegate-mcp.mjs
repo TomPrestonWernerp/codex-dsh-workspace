@@ -5,22 +5,24 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { request } from 'node:http';
+import { createDelegationRunner } from '../lib/delegation/runner.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const stateDir = process.env.DSH_DELEGATE_STATE_DIR || join(homedir(), '.codex', 'codex-dsh-workspace');
 const endpointFile = process.env.DSH_DELEGATE_ENDPOINT_FILE || join(homedir(), '.dsh', 'codex-dsh-workspace', 'endpoint.json');
-const instructions = 'Codex plans and verifies; DSH implements and tests with its own model. Give a complete bounded task and an absolute project cwd. Reuse sessionId for related fixes. Prefer one long wait, not frequent status calls. Read actual diffs/tests before accepting. Large replies are saved locally; detailsFile contains the complete result. No recursive delegation. DSH must be running.';
+const instructions = 'Explicit user requests for Codex-only execution override delegation. Otherwise Codex designs/plans/reviews and DSH implements/tests. Plan once, proactively dispatch steps with dsh_run_prompt.steps; the local bridge advances passed steps without user messages or Codex model calls. DSH owns implementation. Use 480000ms waits; running/disconnected is NOT failure or permission to implement locally. Resume the same job with dsh_wait_session; never resend the task or queue a continuation while running. After completion review concise evidence; send repairs to the same session. Report blockers. No recursion.';
 const definitions = [
   ['dsh_run_prompt', 'Execute a bounded implementation/test task in a NEW DSH session.', {
     prompt: { type: 'string' }, cwd: { type: 'string' }, permissionPreset: { type: 'string', enum: ['read-only', 'workspace-write'] },
     model: { type: 'string' }, reasoningEffort: { type: 'string' }, wait: { type: 'boolean' }, timeoutMs: { type: 'integer' },
+    steps: { type: 'array', minItems: 1, maxItems: 20, description: 'Ordered approved steps, each including scope and acceptance checks. The bridge dispatches the next step only after an explicit passing evidence receipt.', items: { type: 'object', properties: { id: { type: 'string' }, prompt: { type: 'string' } }, required: ['id', 'prompt'], additionalProperties: false } },
   }, ['prompt', 'cwd']],
   ['dsh_continue_session', 'Continue a DSH session for a related fix; preserve its context.', {
     sessionId: { type: 'string' }, prompt: { type: 'string' }, permissionPreset: { type: 'string', enum: ['read-only', 'workspace-write'] },
     wait: { type: 'boolean' }, timeoutMs: { type: 'integer' },
   }, ['sessionId', 'prompt']],
   ['dsh_wait_session', 'Wait for completion without starting another turn. A wait timeout does not stop DSH.', {
-    sessionId: { type: 'string' }, timeoutMs: { type: 'integer' },
+    sessionId: { type: 'string' }, jobId: { type: 'string' }, timeoutMs: { type: 'integer' },
   }, ['sessionId']],
   ['dsh_cancel_session', 'Request cancellation of a DSH turn. Check status if confirmation is needed.', {
     sessionId: { type: 'string' },
@@ -35,6 +37,7 @@ const definitions = [
 ].map(([name, description, properties, required]) => ({ name, description, inputSchema: { type: 'object', properties, required, additionalProperties: false } }));
 const allowed = new Set(definitions.map(t => t.name));
 const contract = '\n\nExecution contract: perform this task yourself using DSH tools; do not invoke Codex, another harness, or delegate it back. Stay inside the approved project scope; do not commit, push, deploy, or change credentials unless the task explicitly authorizes it. Never change sandbox/approval presets, request danger-full-access, repair ACLs, or change system permissions. If a command is blocked by confinement, stop that check and report its command/error for Codex to verify; do not work around the restriction. Run relevant checks and report real exit results. Save verbose logs in workspace files if needed. Final reply: concise summary, changed files, checks with outcomes, blockers, evidence paths. Keep it within 1200 Chinese characters or 600 English words. Do not report unrun checks as passed.';
+const runner = createDelegationRunner({ stateDir, backend: (name, args, signal) => backend('tools/call', { name, arguments: args }, signal) });
 
 function redact(s) { return String(s).replace(/Bearer\s+[^\s"']+/gi, 'Bearer ***').replace(/sk-[A-Za-z0-9_-]{8,}/g, 'sk-***'); }
 async function backend(method, params = {}, signal) {
@@ -73,7 +76,7 @@ async function validateWorkspace(cwd) {
   if (typeof cwd !== 'string' || !isAbsolute(cwd)) throw new Error('cwd must be an existing absolute project directory.');
   const actual = await realpath(cwd);
   if (!(await stat(actual)).isDirectory()) throw new Error('cwd is not a directory.');
-  const same = (a, b) => a.toLowerCase() === b.toLowerCase();
+  const same = (a, b) => process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
   if (same(actual, parse(actual).root) || same(actual, homedir())) throw new Error('Choose a specific project directory, not a drive root or your home directory.');
   const control = join(homedir(), '.codex');
   const rel = relative(control, actual);
@@ -88,6 +91,14 @@ async function prepare(name, input) {
   for (const key of Object.keys(a)) if (!Object.hasOwn(schema.properties, key)) throw new Error(`Unknown argument: ${key}`);
   for (const key of schema.required) if (a[key] === undefined || a[key] === '') throw new Error(`Missing required argument: ${key}`);
   if (name === 'dsh_run_prompt') a.cwd = await validateWorkspace(a.cwd);
+  if (a.steps !== undefined) {
+    if (!Array.isArray(a.steps) || !a.steps.length || a.steps.length > 20) throw new Error('steps must contain 1-20 ordered steps.');
+    const ids = new Set();
+    for (const step of a.steps) {
+      if (!step || Object.keys(step).some(k => !['id', 'prompt'].includes(k)) || typeof step.id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(step.id) || ids.has(step.id) || typeof step.prompt !== 'string' || !step.prompt.trim() || step.prompt.length > 12000) throw new Error('Each step needs a unique id and a bounded prompt with acceptance criteria.');
+      ids.add(step.id);
+    }
+  }
   if (name === 'dsh_run_prompt' || name === 'dsh_continue_session') {
     if (typeof a.prompt !== 'string' || !a.prompt.trim()) throw new Error('prompt must be nonempty text.');
     if (a.prompt.length > 60_000) throw new Error('Put large inputs in project files and send their paths.');
@@ -111,7 +122,7 @@ async function compact(result, name, args) {
   await mkdir(stateDir, { recursive: true });
   if (name === 'dsh_status') {
     const recent = await readFile(join(stateDir, 'runs.jsonl'), 'utf8').catch(() => '');
-    value = { server: value.server, activeTurns: value.activeTurns, model: value.defaultModel,
+    value = { server: value.server, activeTurns: value.activeTurns, hostRunningSessions: value.hostRunningSessions, activeJobs: await runner.list(), model: value.defaultModel,
       permissions: value.defaultPermissionPreset, selfDelegation: value.dshTools?.enabled, workSync: value.sync?.enabled ?? false,
       recentRuns: recent.trim().split('\n').filter(Boolean).slice(-8).map(l => JSON.parse(l)),
       ...(value.pending ? { pending: value.pending } : {}) };
@@ -122,7 +133,9 @@ async function compact(result, name, args) {
     detailsFile = join(folder, `${Date.now()}-${randomUUID()}.json`);
     await writeFile(detailsFile, JSON.stringify(result, null, 2), { mode: 0o600 });
     const text = typeof value.text === 'string' ? value.text : JSON.stringify(value);
-    value = { sessionId: value.sessionId ?? args.sessionId, status: value.status, turnEndReason: value.turnEndReason,
+    value = { sessionId: value.sessionId ?? args.sessionId, jobId: value.jobId, status: value.status, turnEndReason: value.turnEndReason,
+      running: value.running, terminal: value.terminal, nextAction: value.nextAction, localImplementationAllowed: value.localImplementationAllowed,
+      step: value.step, completedSteps: value.completedSteps, evidenceFile: value.evidenceFile,
       pending: value.pending, outputTruncated: true, detailsFile,
       text: text.slice(0, 4000) + '\n[abridged; full result in detailsFile]\n' + text.slice(-1200) };
   }
@@ -144,14 +157,17 @@ async function handle(m) {
     let result;
     if (m.method === 'initialize') {
       const upstream = await backend('initialize', m.params, signal.signal);
-      result = { protocolVersion: upstream.protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'codex-dsh-delegate', version: '1.0.0' }, instructions };
+      result = { protocolVersion: upstream.protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'codex-dsh-delegate', version: '0.2.0' }, instructions };
     } else if (m.method === 'ping') result = {};
     else if (m.method === 'tools/list') result = { tools: definitions };
     else if (m.method === 'tools/call') {
       const name = m.params?.name;
       if (!allowed.has(name)) throw new Error('This tool is not enabled in the slim delegation bridge.');
       const a = await prepare(name, m.params.arguments || {});
-      const upstream = await backend('tools/call', { name, arguments: name === 'dsh_status' ? {} : a }, signal.signal);
+      const upstream = ['dsh_run_prompt', 'dsh_continue_session', 'dsh_wait_session'].includes(name)
+        ? { structuredContent: await runner.execute(name, a, signal.signal) }
+        : name === 'dsh_cancel_session' ? { structuredContent: await runner.cancel(a.sessionId, signal.signal) }
+        : await backend('tools/call', { name, arguments: name === 'dsh_status' ? {} : a }, signal.signal);
       if (name === 'dsh_status' && a.sessionId) {
         const pending = await backend('tools/call', { name: 'dsh_list_requests', arguments: { sessionId: a.sessionId, limit: 1 } }, signal.signal);
         const v = payload(upstream); v.pending = payload(pending); upstream.structuredContent = v;

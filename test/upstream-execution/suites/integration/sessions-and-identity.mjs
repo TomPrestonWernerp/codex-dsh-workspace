@@ -68,7 +68,7 @@ try {
   const promptCeiling = await call('dsh_continue_session', { sessionId: sessionIdFromRun, prompt: PROMPT, timeoutMs: 1000 })
   await check('a waited prompt that hits its ceiling leaves the turn running too', () => {
     assert.equal(promptCeiling.status, 'timeout')
-    assert.match(promptCeiling.note, /still running/)
+    assert.match(promptCeiling.note, /still (?:be )?running/)
     assert.deepEqual(cancelledSessions(), [])
   })
 

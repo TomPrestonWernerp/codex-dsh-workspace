@@ -54,3 +54,11 @@ MIT; adapted source and original licenses are retained in [NOTICE](NOTICE) and [
 Use `--pwsh <absolute-executable>` during installation if DSH inherits another application's private PowerShell binary. This changes only the executable, not confinement. Node 24 supports `node --test --test-isolation=none <test-file>` if its child test process is blocked with `spawn EPERM`. Report unresolved sandbox/ACL errors rather than escalating permissions.
 
 Run `node bin/cli.mjs uninstall --profile desktop` (and `--dsh-command` if needed) to remove this plugin and managed configuration while retaining history, evidence and backups. See [verification](docs/verification.md) for the tested scope and remaining desktop export limitation.
+
+## Reliable delegation and automatic steps (0.2.0)
+
+Codex plans, designs and reviews; DSH implements, debugs and runs most checks. An explicit user request for Codex-only execution overrides delegation.
+
+Pass ordered `{id, prompt}` objects in `dsh_run_prompt.steps`. The local bridge advances passing steps in the same DSH session while the call is active, without user messages or Codex model calls between steps. It pauses on failed/blocked/missing evidence. After a wait budget expires, Codex proactively resumes the existing `sessionId`/`jobId` with `dsh_wait_session`; it must not reimplement or resubmit the task. This is not a persistent scheduler after all bridge processes exit.
+
+A stream EOF or timeout is never completion. Cursor-based waits recover the submitted task's persisted response after DSH goes idle. Durable local receipts survive stdio restarts, suppress duplicate submissions in the same project, and record ambiguous admissions instead of retrying them. Cancellation removes queued MCP-origin prompts while preserving human queue items. The bridge controls its own dispatch; its instructions cannot mechanically prohibit Codex's other tools.
