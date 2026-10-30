@@ -11,6 +11,7 @@ Requires Node 24+, a configured DSH installation, and a local MCP-capable Codex 
 ```sh
 git clone https://github.com/TomPrestonWernerp/codex-dsh-workspace.git
 cd codex-dsh-workspace
+npm ci --ignore-scripts
 node bin/cli.mjs install --profile desktop
 ```
 

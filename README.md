@@ -34,6 +34,7 @@ Codex：任务 → 计划 → 六工具 MCP → DSH：改代码、运行测试
 ```sh
 git clone https://github.com/TomPrestonWernerp/codex-dsh-workspace.git
 cd codex-dsh-workspace
+npm ci --ignore-scripts
 node bin/cli.mjs install --profile desktop
 ```
 
