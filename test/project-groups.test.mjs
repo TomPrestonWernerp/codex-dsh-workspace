@@ -1,13 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { syncProjectCatalog } from '../lib/execution/lib/project-catalog.js'
 
 test('project registration is idempotent, keeps custom titles, and refuses foreign session cwd', async () => {
   const root = await mkdtemp(join(tmpdir(), 'codex-dsh-groups-'))
-  const project = join(root, 'project'); await mkdir(project)
+  let project = join(root, 'project'); await mkdir(project); project = await realpath(project)
   const catalog = join(root, 'projects.json')
   await writeFile(catalog, JSON.stringify({ schemaVersion: 1, projects: [{ path: project, title: 'Codex project', sessionIds: ['same'] }] }))
   const workspaces = new Map(); let creates = 0; const members = new Set()
